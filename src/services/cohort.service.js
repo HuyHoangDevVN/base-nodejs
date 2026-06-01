@@ -1,269 +1,157 @@
 "use strict";
 
 const db = require("../models/postgreSQL");
+const { AppError } = require("../errors/AppError");
 const Cohort = db.Cohort;
-const { Op } = require("sequelize");
+const { Op, UniqueConstraintError } = require("sequelize");
+
+const toPagination = ({ page, limit, totalItems }) => ({
+  page,
+  limit,
+  totalItems,
+  totalPages: Math.ceil(totalItems / limit),
+});
 
 class CohortService {
-  // GET-ALL: Lấy tất cả cohorts
   static getAllCohorts = async () => {
-    try {
-      const cohorts = await Cohort.findAll({
-        order: [["created_at", "DESC"]],
-      });
-      return {
-        code: 200,
-        success: true,
-        message: "Lấy danh sách cohort thành công",
-        data: cohorts,
-      };
-    } catch (error) {
-      throw new Error(`Lỗi khi lấy danh sách cohort: ${error.message}`);
-    }
+    const cohorts = await Cohort.findAll({
+      order: [["created_at", "DESC"]],
+    });
+    return { items: cohorts };
   };
 
-  // GET-LIST: Lấy danh sách có phân trang và tìm kiếm
-  static getListCohorts = async ({ page = 1, limit = 10, search = "" }) => {
-    try {
-      const offset = (page - 1) * limit;
-      const whereCondition = search
-        ? {
-            [Op.or]: [
-              { name: { [Op.iLike]: `%${search}%` } },
-              { code: { [Op.iLike]: `%${search}%` } },
-            ],
-          }
-        : {};
+  static getListCohorts = async ({ page = 1, limit = 20, search = "", sort = "created_at", order = "DESC" }) => {
+    const offset = (page - 1) * limit;
+    const whereCondition = search
+      ? {
+          [Op.or]: [
+            { name: { [Op.iLike]: `%${search}%` } },
+            { code: { [Op.iLike]: `%${search}%` } },
+          ],
+        }
+      : {};
 
-      const { count, rows } = await Cohort.findAndCountAll({
-        where: whereCondition,
-        order: [["created_at", "DESC"]],
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-      });
+    const { count, rows } = await Cohort.findAndCountAll({
+      where: whereCondition,
+      order: [[sort, order]],
+      limit,
+      offset,
+    });
 
-      return {
-        code: 200,
-        success: true,
-        message: "Lấy danh sách cohort thành công",
-        data: {
-          list: rows,
-          pagination: {
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(count / limit),
-            totalItems: count,
-            itemsPerPage: parseInt(limit),
-          },
-        },
-      };
-    } catch (error) {
-      throw new Error(`Lỗi khi lấy danh sách cohort: ${error.message}`);
-    }
+    return {
+      items: rows,
+      pagination: toPagination({ page, limit, totalItems: count }),
+    };
   };
 
-  // GET-BY-ID: Lấy cohort theo ID
   static getCohortById = async (id) => {
-    try {
-      const cohort = await Cohort.findByPk(id);
-      if (!cohort) {
-        return {
-          code: 404,
-          success: false,
-          message: "Không tìm thấy cohort",
-          data: null,
-        };
-      }
+    const cohort = await Cohort.findByPk(id);
+    if (!cohort) {
+      throw new AppError("Cohort not found", {
+        status: 404,
+        code: "COHORT_NOT_FOUND",
+      });
+    }
 
-      return {
-        code: 200,
-        success: true,
-        message: "Lấy thông tin cohort thành công",
-        data: cohort,
-      };
+    return cohort;
+  };
+
+  static createCohort = async (data) => {
+    try {
+      return await db.sequelize.transaction(async (transaction) =>
+        Cohort.create(
+          {
+            ...data,
+            created_at: new Date(),
+            modified_at: new Date(),
+          },
+          { transaction }
+        )
+      );
     } catch (error) {
-      throw new Error(`Lỗi khi lấy thông tin cohort: ${error.message}`);
+      if (error instanceof UniqueConstraintError) {
+        throw new AppError("Cohort code already exists", {
+          status: 409,
+          code: "COHORT_CODE_EXISTS",
+        });
+      }
+      throw error;
     }
   };
 
-  // CREATE-OR-UPDATE: Tạo mới hoặc cập nhật cohort
-  static createOrUpdateCohort = async (data, id = null) => {
+  static updateCohort = async (id, data) => {
     try {
-      // Validation dữ liệu đầu vào
-      if (!data || typeof data !== "object") {
-        return {
-          code: 400,
-          success: false,
-          message: "Dữ liệu không hợp lệ",
-          data: null,
-        };
-      }
-
-      // Kiểm tra các trường bắt buộc
-      const requiredFields = ["code", "name", "start_year"];
-      for (const field of requiredFields) {
-        if (!data[field]) {
-          return {
-            code: 400,
-            success: false,
-            message: `Trường ${field} là bắt buộc`,
-            data: null,
-          };
-        }
-      }
-
-      // Kiểm tra trùng code (trừ chính nó khi update)
-      const existingCohort = await Cohort.findOne({
-        where: {
-          code: data.code,
-          ...(id && { id: { [Op.ne]: id } }),
-        },
-      });
-
-      if (existingCohort) {
-        return {
-          code: 400,
-          success: false,
-          message: "Mã cohort đã tồn tại",
-          data: null,
-        };
-      }
-
-      let cohort;
-      let message;
-
-      if (id) {
-        // Update
-        const existingRecord = await Cohort.findByPk(id);
-        if (!existingRecord) {
-          return {
-            code: 404,
-            success: false,
-            message: "Không tìm thấy cohort để cập nhật",
-            data: null,
-          };
+      return await db.sequelize.transaction(async (transaction) => {
+        const cohort = await Cohort.findByPk(id, { transaction });
+        if (!cohort) {
+          throw new AppError("Cohort not found", {
+            status: 404,
+            code: "COHORT_NOT_FOUND",
+          });
         }
 
-        await Cohort.update(
+        await cohort.update(
           {
             ...data,
             modified_at: new Date(),
           },
-          { where: { id } }
+          { transaction }
         );
 
-        cohort = await Cohort.findByPk(id);
-        message = "Cập nhật cohort thành công";
-      } else {
-        // Create
-        cohort = await Cohort.create({
-          ...data,
-          created_at: new Date(),
-          modified_at: new Date(),
-        });
-        message = "Tạo cohort thành công";
-      }
-
-      return {
-        code: id ? 200 : 201,
-        success: true,
-        message,
-        data: cohort,
-      };
-    } catch (error) {
-      throw new Error(
-        `Lỗi khi ${id ? "cập nhật" : "tạo"} cohort: ${error.message}`
-      );
-    }
-  };
-
-  // DELETE: Xóa cohort theo ID
-  static deleteCohort = async (id) => {
-    try {
-      const cohort = await Cohort.findByPk(id);
-      if (!cohort) {
-        return {
-          code: 404,
-          success: false,
-          message: "Không tìm thấy cohort để xóa",
-          data: null,
-        };
-      }
-
-      await Cohort.destroy({ where: { id } });
-
-      return {
-        code: 200,
-        success: true,
-        message: "Xóa cohort thành công",
-        data: { id },
-      };
-    } catch (error) {
-      throw new Error(`Lỗi khi xóa cohort: ${error.message}`);
-    }
-  };
-
-  // DELETE-MANY: Xóa nhiều cohorts theo danh sách IDs
-  static deleteManyCohorts = async (ids) => {
-    try {
-      if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return {
-          code: 400,
-          success: false,
-          message: "Danh sách ID không hợp lệ",
-          data: null,
-        };
-      }
-
-      const existingCohorts = await Cohort.findAll({
-        where: { id: { [Op.in]: ids } },
+        return cohort;
       });
+    } catch (error) {
+      if (error instanceof UniqueConstraintError) {
+        throw new AppError("Cohort code already exists", {
+          status: 409,
+          code: "COHORT_CODE_EXISTS",
+        });
+      }
+      throw error;
+    }
+  };
 
-      if (existingCohorts.length === 0) {
-        return {
-          code: 404,
-          success: false,
-          message: "Không tìm thấy cohort nào để xóa",
-          data: null,
-        };
+  static deleteCohort = async (id) =>
+    db.sequelize.transaction(async (transaction) => {
+      const cohort = await Cohort.findByPk(id, { transaction });
+      if (!cohort) {
+        throw new AppError("Cohort not found", {
+          status: 404,
+          code: "COHORT_NOT_FOUND",
+        });
       }
 
+      await cohort.destroy({ transaction });
+      return { id };
+    });
+
+  static deleteManyCohorts = async (ids) =>
+    db.sequelize.transaction(async (transaction) => {
       const deletedCount = await Cohort.destroy({
         where: { id: { [Op.in]: ids } },
+        transaction,
       });
 
-      return {
-        code: 200,
-        success: true,
-        message: `Xóa thành công ${deletedCount} cohort`,
-        data: {
-          deletedIds: ids,
-          deletedCount,
-        },
-      };
-    } catch (error) {
-      throw new Error(`Lỗi khi xóa nhiều cohort: ${error.message}`);
-    }
-  };
+      if (deletedCount === 0) {
+        throw new AppError("No cohorts found to delete", {
+          status: 404,
+          code: "COHORT_NOT_FOUND",
+        });
+      }
 
-  // GET-SELECT: Lấy danh sách cho dropdown/select (chỉ id, name, code)
+      return {
+        deletedIds: ids,
+        deletedCount,
+      };
+    });
+
   static getSelectCohorts = async () => {
-    try {
-      const cohorts = await Cohort.findAll({
-        attributes: ["id", "code", "name"],
-        order: [["name", "ASC"]],
-      });
+    const cohorts = await Cohort.findAll({
+      attributes: ["id", "code", "name"],
+      order: [["name", "ASC"]],
+    });
 
-      return {
-        code: 200,
-        success: true,
-        message: "Lấy danh sách cohort cho select thành công",
-        data: cohorts,
-      };
-    } catch (error) {
-      throw new Error(
-        `Lỗi khi lấy danh sách cohort cho select: ${error.message}`
-      );
-    }
+    return { items: cohorts };
   };
 }
 

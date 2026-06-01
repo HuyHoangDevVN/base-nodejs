@@ -10,6 +10,7 @@ module.exports = (sequelize, Sequelize) => {
       code: {
         type: Sequelize.STRING(50),
         allowNull: false,
+        unique: true,
       },
       name: {
         type: Sequelize.STRING(255),
@@ -43,6 +44,15 @@ module.exports = (sequelize, Sequelize) => {
     {
       timestamps: false,
       tableName: "cohorts",
+      indexes: [
+        {
+          unique: true,
+          fields: ["code"],
+        },
+        {
+          fields: ["name"],
+        },
+      ],
     }
   );
 

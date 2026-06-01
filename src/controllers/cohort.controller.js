@@ -1,135 +1,80 @@
 "use strict";
 
 const CohortService = require("../services/cohort.service");
+const { sendSuccess } = require("../utils/apiResponse");
 
 class CohortController {
-  // GET-ALL: Lấy tất cả cohorts
   getAllCohorts = async (req, res) => {
-    try {
-      const result = await CohortService.getAllCohorts();
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.getAllCohorts();
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Cohorts retrieved",
+      data,
+    });
   };
 
-  // GET-LIST: Lấy danh sách có phân trang và tìm kiếm
   getListCohorts = async (req, res) => {
-    try {
-      const { page, limit, search } = req.query;
-      const result = await CohortService.getListCohorts({
-        page,
-        limit,
-        search,
-      });
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.getListCohorts(req.validated.query);
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Cohorts retrieved",
+      data,
+    });
   };
 
-  // GET-BY-ID: Lấy cohort theo ID
   getCohortById = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const result = await CohortService.getCohortById(id);
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.getCohortById(req.validated.params.id);
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Cohort retrieved",
+      data,
+    });
   };
 
-  // CREATE: Tạo mới cohort
   createCohort = async (req, res) => {
-    try {
-      const result = await CohortService.createOrUpdateCohort(req.body);
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.createCohort(req.validated.body);
+    return sendSuccess(res, {
+      status: 201,
+      code: "CREATED",
+      message: "Cohort created",
+      data,
+    });
   };
 
-  // UPDATE: Cập nhật cohort
   updateCohort = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const result = await CohortService.createOrUpdateCohort(req.body, id);
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.updateCohort(req.validated.params.id, req.validated.body);
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Cohort updated",
+      data,
+    });
   };
 
-  // DELETE: Xóa cohort theo ID
   deleteCohort = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const result = await CohortService.deleteCohort(id);
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.deleteCohort(req.validated.params.id);
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Cohort deleted",
+      data,
+    });
   };
 
-  // DELETE-MANY: Xóa nhiều cohorts
   deleteManyCohorts = async (req, res) => {
-    try {
-      const { ids } = req.body;
-      const result = await CohortService.deleteManyCohorts(ids);
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.deleteManyCohorts(req.validated.body.ids);
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Cohorts deleted",
+      data,
+    });
   };
 
-  // GET-SELECT: Lấy danh sách cho dropdown/select
   getSelectCohorts = async (req, res) => {
-    try {
-      const result = await CohortService.getSelectCohorts();
-      return res.status(result.code).json(result);
-    } catch (error) {
-      return res.status(500).json({
-        code: 500,
-        success: false,
-        message: error.message,
-        data: null,
-      });
-    }
+    const data = await CohortService.getSelectCohorts();
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Cohort options retrieved",
+      data,
+    });
   };
 }
 

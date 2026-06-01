@@ -1,76 +1,92 @@
 "use strict";
 
-const shopModel = require("../models/shop.model");
-const bycrypt = require("bcrypt");
-const crypto = require("crypto");
-const keyTokenService = require("./keyToken.service");
+const crypto = require("node:crypto");
+const jwt = require("jsonwebtoken");
+const { env } = require("../configs/env");
+const { Roles } = require("../constants/roles");
+const { AppError } = require("../errors/AppError");
 
-// Define roles nhớ sửa để ra ngoài ký tự khác tự quy ước
-const RoleShop = {
-  SHOP: "001",
-  WRITER: "002",
-  EDITOR: "003",
-  ADMIN: "004",
+const refreshTokens = new Map();
+
+const safeEqual = (left, right) => {
+  const a = Buffer.from(String(left));
+  const b = Buffer.from(String(right));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+const publicUser = {
+  id: "env-admin",
+  email: env.AUTH_ADMIN_EMAIL,
+  role: Roles.ADMIN,
+};
+
+const signAccessToken = (user) =>
+  jwt.sign(user, env.JWT_ACCESS_SECRET, {
+    expiresIn: "15m",
+  });
+
+const signRefreshToken = (user) => {
+  const tokenId = crypto.randomUUID();
+  const token = jwt.sign({ sub: user.id, email: user.email, role: user.role, tokenId }, env.JWT_REFRESH_SECRET, {
+    expiresIn: "7d",
+  });
+  refreshTokens.set(tokenId, user);
+  return token;
 };
 
 class AccessService {
-  static signUp = async ({ name, email, password }) => {
-    try {
-      // step 1: check if user already exists
-      const hodelShop = await shopModel.findOne({ email }).lean();
-      if (hodelShop) {
-        return {
-          code: "xxxx",
-          message: "User already exists",
-          status: "error",
-        };
-      }
+  static signUp = async () => {
+    throw new AppError("Signup persistence is not configured", {
+      status: 501,
+      code: "AUTH_SIGNUP_NOT_CONFIGURED",
+    });
+  };
 
-      const passwordHash = await bycrypt.hash(password, 10);
-      const newShop = await shopModel.create({
-        name,
-        email,
-        password: passwordHash,
-        roles: [RoleShop.SHOP],
+  static login = async ({ email, password }) => {
+    if (!safeEqual(email, env.AUTH_ADMIN_EMAIL) || !safeEqual(password, env.AUTH_ADMIN_PASSWORD)) {
+      throw new AppError("Invalid email or password", {
+        status: 401,
+        code: "INVALID_CREDENTIALS",
       });
+    }
 
-      if (newShop) {
-        // step 2: create private key and public key
-        const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
-          modulusLength: 4096,
-          publicKeyEncoding: {
-            type: "spki",
-            format: "pem",
-          },
-          privateKeyEncoding: {
-            type: "pkcs8",
-            format: "pem",
-          },
-        });
+    return {
+      user: publicUser,
+      accessToken: signAccessToken(publicUser),
+      refreshToken: signRefreshToken(publicUser),
+    };
+  };
 
-        console.log({
-          privateKey,
-          publicKey,
-        });
-
-        const tokenKeyString = await keyTokenService.createKeyToken({
-          userId: newShop._id,
-          publicKey,
-        });
-
-        // step 3: return success response
-        return {
-          code: "0000",
-          message: "User signed up successfully",
-          status: "success",
-        };
+  static refresh = async ({ refreshToken }) => {
+    try {
+      const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+      const user = refreshTokens.get(payload.tokenId);
+      if (!user) {
+        throw new Error("Refresh token revoked");
       }
-    } catch (error) {
+      refreshTokens.delete(payload.tokenId);
       return {
-        code: "xxx",
-        message: error.message,
-        status: "error",
+        user,
+        accessToken: signAccessToken(user),
+        refreshToken: signRefreshToken(user),
       };
+    } catch (error) {
+      throw new AppError("Invalid or expired refresh token", {
+        status: 401,
+        code: "INVALID_REFRESH_TOKEN",
+      });
+    }
+  };
+
+  static logout = async ({ refreshToken }) => {
+    if (!refreshToken) {
+      return { revoked: false };
+    }
+    try {
+      const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+      return { revoked: refreshTokens.delete(payload.tokenId) };
+    } catch (error) {
+      return { revoked: false };
     }
   };
 }
