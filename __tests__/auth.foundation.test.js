@@ -5,6 +5,7 @@ const { PasswordService } = require("../src/modules/auth/services/password.servi
 const { TokenService } = require("../src/modules/auth/services/token.service");
 const { PermissionResolverService } = require("../src/modules/auth/services/permission-resolver.service");
 const { AccountStatus, SessionStatus } = require("../src/constants/auth");
+const { env } = require("../src/configs/env");
 
 const auditLogService = { record: jest.fn().mockResolvedValue(null) };
 
@@ -38,6 +39,44 @@ describe("base auth service", () => {
     expect(result.user).toMatchObject({ email: "admin@example.com", role: "admin" });
     expect(result.accessToken).toEqual(expect.any(String));
     expect(result.refreshToken).toEqual(expect.any(String));
+  });
+
+  test("env-admin fallback is blocked in production unless explicitly enabled", async () => {
+    const previousNodeEnv = env.NODE_ENV;
+    const previousEnabled = env.AUTH_ENV_ADMIN_ENABLED_BOOL;
+    env.NODE_ENV = "production";
+    env.AUTH_ENV_ADMIN_ENABLED_BOOL = false;
+    const service = buildAuthService({
+      userRepository: { findByIdentifier: jest.fn().mockResolvedValue(null) },
+      sessionRepository: { create: jest.fn() },
+      permissionResolver: { resolveEffectivePermissions: jest.fn() },
+    });
+
+    await expect(service.login({ identifier: "admin@example.com", password: "password" })).rejects.toMatchObject({
+      status: 401,
+      code: "INVALID_CREDENTIALS",
+    });
+
+    env.NODE_ENV = previousNodeEnv;
+    env.AUTH_ENV_ADMIN_ENABLED_BOOL = previousEnabled;
+  });
+
+  test("env-admin fallback works in production only when explicitly enabled", async () => {
+    const previousNodeEnv = env.NODE_ENV;
+    const previousEnabled = env.AUTH_ENV_ADMIN_ENABLED_BOOL;
+    env.NODE_ENV = "production";
+    env.AUTH_ENV_ADMIN_ENABLED_BOOL = true;
+    const service = buildAuthService({
+      userRepository: { findByIdentifier: jest.fn() },
+      sessionRepository: { create: jest.fn() },
+      permissionResolver: { resolveEffectivePermissions: jest.fn() },
+    });
+
+    const result = await service.login({ identifier: "admin@example.com", password: "password" });
+    expect(result.user.role).toBe("admin");
+
+    env.NODE_ENV = previousNodeEnv;
+    env.AUTH_ENV_ADMIN_ENABLED_BOOL = previousEnabled;
   });
 
   test("refresh rotates refresh token and keeps token family", async () => {

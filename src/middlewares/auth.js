@@ -31,7 +31,7 @@ const authenticate = (req, res, next) => {
       role: payload.role ?? (req.auth.roles.includes("SUPER_ADMIN") || req.auth.roles.includes("ADMIN") ? "admin" : "user"),
     };
     return next();
-  } catch (error) {
+  } catch {
     return next(new AppError("Invalid or expired token", {
       status: 401,
       code: "INVALID_TOKEN",
@@ -71,6 +71,7 @@ const requirePermission = (permissionCode) => async (req, res, next) => {
     if (!allowed) {
       return next(new AppError("Insufficient permissions", { status: 403, code: "FORBIDDEN" }));
     }
+    req.user.permissions = [...new Set([...(req.user.permissions ?? []), permissionCode])];
     return next();
   } catch (error) {
     return next(error);
@@ -85,6 +86,12 @@ const requireAnyPermission = (permissionCodes) => async (req, res, next) => {
     if (!checks.some(Boolean)) {
       return next(new AppError("Insufficient permissions", { status: 403, code: "FORBIDDEN" }));
     }
+    req.user.permissions = [
+      ...new Set([
+        ...(req.user.permissions ?? []),
+        ...permissionCodes.filter((_, index) => checks[index]),
+      ]),
+    ];
     return next();
   } catch (error) {
     return next(error);

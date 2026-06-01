@@ -31,6 +31,10 @@ const changePasswordBody = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
+const sessionParams = z.object({
+  sessionId: z.string().uuid(),
+});
+
 module.exports = {
   loginSchema: { body: emailPasswordBody },
   registerSchema: { body: registerBody },
@@ -38,4 +42,5 @@ module.exports = {
   refreshSchema: { body: refreshBody },
   logoutSchema: { body: refreshBody.extend({ sessionId: z.string().uuid().optional() }).partial().optional() },
   changePasswordSchema: { body: changePasswordBody },
+  sessionParamsSchema: { params: sessionParams },
 };

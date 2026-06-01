@@ -1,7 +1,6 @@
 "use strict";
 
 const express = require("express");
-const morgan = require("morgan");
 const helmet = require("helmet");
 const compression = require("compression");
 const cors = require("cors");
@@ -10,12 +9,16 @@ const swaggerUi = require("swagger-ui-express");
 const { swaggerSpec } = require("./configs/swagger.config");
 const { env } = require("./configs/env");
 const { requestId } = require("./middlewares/requestId");
+const { requestLogger } = require("./middlewares/requestLogger");
 const { notFoundHandler, errorHandler } = require("./middlewares/errorHandler");
+const { metricsMiddleware } = require("./shared/metrics/metrics");
 
 const app = express();
 
 app.disable("x-powered-by");
 app.use(requestId);
+app.use(requestLogger);
+app.use(metricsMiddleware);
 app.use(helmet());
 app.use(
   cors({
@@ -25,10 +28,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Request-Id"],
   })
 );
-
-if (env.NODE_ENV === "development") {
-  app.use(morgan("dev"));
-}
 
 app.use(compression());
 app.use(express.json({ limit: "1mb" }));

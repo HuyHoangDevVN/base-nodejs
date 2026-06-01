@@ -71,6 +71,28 @@ class AccessController {
     });
   };
 
+  listSessions = async (req, res) => {
+    const data = await AccessService.listSessions({ actor: req.auth });
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Sessions retrieved",
+      data,
+    });
+  };
+
+  revokeSession = async (req, res) => {
+    const data = await AccessService.revokeOwnSession({
+      actor: req.auth,
+      sessionId: req.validated.params.sessionId,
+      context: this.getContext(req),
+    });
+    return sendSuccess(res, {
+      code: "OK",
+      message: "Session revoked",
+      data,
+    });
+  };
+
   me = async (req, res) => {
     const data = await AccessService.me({ actor: req.auth });
     return sendSuccess(res, {

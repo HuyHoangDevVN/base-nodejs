@@ -3,9 +3,8 @@
 const express = require("express");
 const cohortController = require("../../controllers/cohort.controller");
 const { asyncHandler } = require("../../middlewares/asyncHandler");
-const { authenticate, authorize, optionalReadAuth } = require("../../middlewares/auth");
+const { authenticate, optionalReadAuth, requireAnyPermission } = require("../../middlewares/auth");
 const { validate } = require("../../middlewares/validate");
-const { Roles } = require("../../constants/roles");
 const {
   idParams,
   listQuery,
@@ -15,7 +14,7 @@ const {
 } = require("../../validators/cohort.validator");
 
 const router = express.Router();
-const canManageCohorts = [authenticate, authorize(Roles.ADMIN)];
+const canManageCohorts = [authenticate, requireAnyPermission(["cohort.manage", "academic.cohort.manage"])];
 
 // RESTful API.
 router.get("/cohorts", optionalReadAuth, validate({ query: listQuery }), asyncHandler(cohortController.getListCohorts));

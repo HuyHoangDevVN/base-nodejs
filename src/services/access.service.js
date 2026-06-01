@@ -20,6 +20,11 @@ class AccessService {
 
   static logoutAll = async ({ actor, context }) => authService.logoutAll({ actor, context });
 
+  static listSessions = async ({ actor }) => authService.listSessions({ actor });
+
+  static revokeOwnSession = async ({ actor, sessionId, context }) =>
+    authService.revokeOwnSession({ actor, sessionId, context });
+
   static me = async ({ actor }) => authService.me({ actor });
 
   static changePassword = async ({ actor, oldPassword, newPassword, context }) =>

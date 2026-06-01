@@ -34,6 +34,8 @@ const DEFAULT_PERMISSIONS = [
   ["hrm.employee.update", "Update Employee", "hrm", "employee", "update", "PATCH", "/api/v1/employees/:id"],
   ["hrm.employee.delete", "Delete Employee", "hrm", "employee", "delete", "DELETE", "/api/v1/employees/:id"],
   ["hrm.account.provision", "Provision Account", "hrm", "account", "provision", "POST", "/api/v1/accounts/provision"],
+  ["cohort.read", "Read Cohorts", "academic", "cohort", "read", "GET", "/api/v1/cohorts"],
+  ["cohort.manage", "Manage Cohorts", "academic", "cohort", "manage", "POST", "/api/v1/cohorts"],
 ];
 
 const DEFAULT_ROLES = [
@@ -45,7 +47,26 @@ const DEFAULT_ROLES = [
   ["AUDITOR", "Auditor", "Read audit and report access"],
 ];
 
+const DEFAULT_PERMISSION_GROUPS = [
+  ["AUTH_USER_MANAGEMENT", "Auth User Management", "auth", ["auth.user.read", "auth.user.create", "auth.user.update", "auth.user.update_status", "auth.user.lock", "auth.user.unlock", "auth.user.reset_password", "auth.session.read", "auth.session.revoke"]],
+  ["AUTH_ROLE_MANAGEMENT", "Role Management", "auth", ["auth.role.read", "auth.role.create", "auth.role.update", "auth.role.delete", "auth.role.assign"]],
+  ["AUTH_PERMISSION_MANAGEMENT", "Permission Management", "auth", ["auth.permission.read", "auth.permission.create", "auth.permission.update", "auth.permission.delete", "auth.permission.assign_direct", "auth.permission_group.read", "auth.permission_group.create", "auth.permission_group.update", "auth.permission_group.delete", "auth.permission_group.assign"]],
+  ["ADMIN_MONITORING", "Admin Monitoring", "admin", ["admin.system_logs.read", "admin.system_health.read", "admin.settings.read", "admin.settings.update"]],
+  ["HRM_EMPLOYEE_MANAGEMENT", "HRM Employee Management", "hrm", ["hrm.employee.read", "hrm.employee.create", "hrm.employee.update", "hrm.employee.delete", "hrm.account.provision"]],
+  ["ACADEMIC_COHORT_MANAGEMENT", "Academic Cohort Management", "academic", ["cohort.read", "cohort.manage"]],
+];
+
+const ROLE_PERMISSION_GROUPS = {
+  SUPER_ADMIN: ["AUTH_USER_MANAGEMENT", "AUTH_ROLE_MANAGEMENT", "AUTH_PERMISSION_MANAGEMENT", "ADMIN_MONITORING", "HRM_EMPLOYEE_MANAGEMENT", "ACADEMIC_COHORT_MANAGEMENT"],
+  ADMIN: ["AUTH_USER_MANAGEMENT", "AUTH_ROLE_MANAGEMENT", "ADMIN_MONITORING", "ACADEMIC_COHORT_MANAGEMENT"],
+  HR_MANAGER: ["HRM_EMPLOYEE_MANAGEMENT", "ACADEMIC_COHORT_MANAGEMENT"],
+  HR_STAFF: ["HRM_EMPLOYEE_MANAGEMENT", "ACADEMIC_COHORT_MANAGEMENT"],
+  AUDITOR: ["ADMIN_MONITORING"],
+};
+
 module.exports = {
   DEFAULT_PERMISSIONS,
+  DEFAULT_PERMISSION_GROUPS,
   DEFAULT_ROLES,
+  ROLE_PERMISSION_GROUPS,
 };

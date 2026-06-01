@@ -16,6 +16,14 @@ class AuthSessionRepository {
     return this.AuthSession.findOne({ where: { id, status: SessionStatus.ACTIVE } });
   }
 
+  listForUser(userId) {
+    return this.AuthSession.findAll({
+      where: { userId },
+      attributes: { exclude: ["refreshTokenHash"] },
+      order: [["created_at", "DESC"]],
+    });
+  }
+
   findByRefreshTokenHash(refreshTokenHash) {
     return this.AuthSession.findOne({ where: { refreshTokenHash } });
   }

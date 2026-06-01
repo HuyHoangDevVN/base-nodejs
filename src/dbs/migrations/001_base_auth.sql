@@ -36,6 +36,20 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_id UUID NOT NULL REFERENCES auth_sessions(id) ON DELETE CASCADE,
+  token_family UUID NOT NULL,
+  refresh_token_hash VARCHAR(128) NOT NULL UNIQUE,
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  expires_at TIMESTAMPTZ NOT NULL,
+  rotated_at TIMESTAMPTZ,
+  reused_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS roles (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   code VARCHAR(100) NOT NULL UNIQUE,
@@ -141,6 +155,10 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_status ON auth_sessions(user_i
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_hash ON auth_sessions(refresh_token_hash);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_family ON auth_sessions(token_family);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at ON auth_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_hash ON auth_refresh_tokens(refresh_token_hash);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_session ON auth_refresh_tokens(session_id);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_family ON auth_refresh_tokens(token_family);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_status ON auth_refresh_tokens(status);
 CREATE INDEX IF NOT EXISTS idx_permissions_code ON permissions(code);
 CREATE INDEX IF NOT EXISTS idx_roles_code ON roles(code);
 CREATE INDEX IF NOT EXISTS idx_user_roles_expires_at ON user_roles(expires_at);

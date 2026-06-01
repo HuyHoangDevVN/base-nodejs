@@ -11,6 +11,7 @@ const {
   registerSchema,
   signupSchema,
   refreshSchema,
+  sessionParamsSchema,
   logoutSchema,
 } = require("../../validators/auth.validator");
 
@@ -22,6 +23,8 @@ router.post("/auth/login", validate(loginSchema), asyncHandler(accessController.
 router.post("/auth/refresh", validate(refreshSchema), asyncHandler(accessController.refresh));
 router.post("/auth/logout", authenticate, validate(logoutSchema), asyncHandler(accessController.logout));
 router.post("/auth/logout-all", authenticate, asyncHandler(accessController.logoutAll));
+router.get("/auth/sessions", authenticate, asyncHandler(accessController.listSessions));
+router.delete("/auth/sessions/:sessionId", authenticate, validate(sessionParamsSchema), asyncHandler(accessController.revokeSession));
 router.get("/auth/me", authenticate, asyncHandler(accessController.me));
 router.post("/auth/change-password", authenticate, validate(changePasswordSchema), asyncHandler(accessController.changePassword));
 

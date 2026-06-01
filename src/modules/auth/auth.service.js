@@ -8,6 +8,7 @@ const { AppError } = require("../../errors/AppError");
 const { ConflictError } = require("../../shared/errors/conflict-error");
 const { UnauthorizedError } = require("../../shared/errors/unauthorized-error");
 const { toPublicAuthUser } = require("./mappers/auth-user.mapper");
+const { logger } = require("../../shared/logger/logger");
 
 const safeEqual = (left, right) => {
   const a = Buffer.from(String(left));
@@ -19,6 +20,7 @@ class AuthService {
   constructor({
     userRepository,
     sessionRepository,
+    refreshTokenRepository,
     passwordService,
     tokenService,
     permissionResolver,
@@ -27,6 +29,7 @@ class AuthService {
   }) {
     this.userRepository = userRepository;
     this.sessionRepository = sessionRepository;
+    this.refreshTokenRepository = refreshTokenRepository;
     this.passwordService = passwordService;
     this.tokenService = tokenService;
     this.permissionResolver = permissionResolver;
@@ -118,6 +121,13 @@ class AuthService {
       expiresAt: refresh.expiresAt,
       lastUsedAt: this.clock(),
     });
+    await this.refreshTokenRepository?.create({
+      sessionId: session.id,
+      tokenFamily: refresh.tokenFamily,
+      refreshTokenHash: refresh.refreshTokenHash,
+      status: "ACTIVE",
+      expiresAt: refresh.expiresAt,
+    });
     const { accessToken, expiresIn } = this.tokenService.signAccessToken({
       user,
       sessionId: session.id,
@@ -152,14 +162,34 @@ class AuthService {
 
   async refresh({ refreshToken, context = {} }) {
     const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
+    const tokenRecord = await this.refreshTokenRepository?.findByHash(refreshTokenHash);
     const session = await this.sessionRepository.findByRefreshTokenHash(refreshTokenHash);
 
+    if (tokenRecord && tokenRecord.status !== "ACTIVE") {
+      await this.refreshTokenRepository?.markReused(tokenRecord);
+      await this.refreshTokenRepository?.revokeByFamily(tokenRecord.tokenFamily);
+      await this.sessionRepository.revokeByFamily(tokenRecord.tokenFamily, "refresh_reuse_detected");
+      await this.auditLogService.record({
+        actorUserId: session?.userId ?? null,
+        targetUserId: session?.userId ?? null,
+        action: AuthAuditAction.REFRESH_REUSE_DETECTED,
+        resourceType: "auth_refresh_token",
+        resourceId: tokenRecord.id,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+        requestId: context.requestId,
+      });
+      throw new UnauthorizedError("Invalid or expired refresh token", "INVALID_REFRESH_TOKEN");
+    }
+
     if (!session || session.status !== SessionStatus.ACTIVE || new Date(session.expiresAt).getTime() <= Date.now()) {
-      if (session?.tokenFamily) {
-        await this.sessionRepository.revokeByFamily(session.tokenFamily, "refresh_reuse_detected");
+      if (session?.tokenFamily || tokenRecord?.tokenFamily) {
+        const family = session?.tokenFamily ?? tokenRecord.tokenFamily;
+        await this.refreshTokenRepository?.revokeByFamily(family);
+        await this.sessionRepository.revokeByFamily(family, "refresh_reuse_detected");
         await this.auditLogService.record({
-          actorUserId: session.userId,
-          targetUserId: session.userId,
+          actorUserId: session?.userId ?? null,
+          targetUserId: session?.userId ?? null,
           action: AuthAuditAction.REFRESH_REUSE_DETECTED,
           resourceType: "auth_session",
           resourceId: session.id,
@@ -179,10 +209,18 @@ class AuthService {
 
     const authz = await this.permissionResolver.resolveEffectivePermissions(user.id);
     const rotated = this.tokenService.issueRefreshToken(session.tokenFamily);
+    await this.refreshTokenRepository?.markRotated(tokenRecord);
     await this.sessionRepository.updateRefreshToken(session, {
       refreshTokenHash: rotated.refreshTokenHash,
       expiresAt: rotated.expiresAt,
       lastUsedAt: this.clock(),
+    });
+    await this.refreshTokenRepository?.create({
+      sessionId: session.id,
+      tokenFamily: rotated.tokenFamily,
+      refreshTokenHash: rotated.refreshTokenHash,
+      status: "ACTIVE",
+      expiresAt: rotated.expiresAt,
     });
     const { accessToken, expiresIn } = this.tokenService.signAccessToken({
       user,
@@ -241,6 +279,30 @@ class AuthService {
     return { revokedCount: Array.isArray(result) ? result[0] : result };
   }
 
+  async listSessions({ actor }) {
+    const sessions = await this.sessionRepository.listForUser(actor.id);
+    return { items: sessions };
+  }
+
+  async revokeOwnSession({ actor, sessionId, context = {} }) {
+    const session = await this.sessionRepository.findActiveById(sessionId);
+    if (!session || session.userId !== actor.id) {
+      throw new AppError("Session not found", { status: 404, code: "SESSION_NOT_FOUND" });
+    }
+    await this.sessionRepository.revoke(session, "user_revoke");
+    await this.auditLogService.record({
+      actorUserId: actor.id,
+      targetUserId: actor.id,
+      action: AuthAuditAction.LOGOUT,
+      resourceType: "auth_session",
+      resourceId: session.id,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      requestId: context.requestId,
+    });
+    return { id: session.id, revoked: true };
+  }
+
   async me({ actor }) {
     const user = await this.userRepository.findById(actor.id);
     const authz = await this.permissionResolver.resolveEffectivePermissions(actor.id);
@@ -281,7 +343,11 @@ class AuthService {
   }
 
   async findUserForLogin(identifier) {
-    if (safeEqual(identifier, env.AUTH_ADMIN_EMAIL)) {
+    const envAdminAllowed = env.NODE_ENV !== "production" || env.AUTH_ENV_ADMIN_ENABLED_BOOL;
+    if (safeEqual(identifier, env.AUTH_ADMIN_EMAIL) && envAdminAllowed) {
+      if (env.NODE_ENV === "production" && env.AUTH_ENV_ADMIN_ENABLED_BOOL) {
+        logger.warn("AUTH_ENV_ADMIN_ENABLED is true in production");
+      }
       return {
         id: "env-admin",
         email: env.AUTH_ADMIN_EMAIL,
@@ -295,11 +361,7 @@ class AuthService {
       };
     }
 
-    try {
-      return await this.userRepository.findByIdentifier(identifier);
-    } catch (error) {
-      throw error;
-    }
+    return this.userRepository.findByIdentifier(identifier);
   }
 
   async recordLoginFailure(targetUserId, context) {
