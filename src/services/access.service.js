@@ -1,94 +1,29 @@
 "use strict";
 
-const crypto = require("node:crypto");
-const jwt = require("jsonwebtoken");
-const { env } = require("../configs/env");
-const { Roles } = require("../constants/roles");
+const { authService } = require("../modules/auth");
 const { AppError } = require("../errors/AppError");
-
-const refreshTokens = new Map();
-
-const safeEqual = (left, right) => {
-  const a = Buffer.from(String(left));
-  const b = Buffer.from(String(right));
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-};
-
-const publicUser = {
-  id: "env-admin",
-  email: env.AUTH_ADMIN_EMAIL,
-  role: Roles.ADMIN,
-};
-
-const signAccessToken = (user) =>
-  jwt.sign(user, env.JWT_ACCESS_SECRET, {
-    expiresIn: "15m",
-  });
-
-const signRefreshToken = (user) => {
-  const tokenId = crypto.randomUUID();
-  const token = jwt.sign({ sub: user.id, email: user.email, role: user.role, tokenId }, env.JWT_REFRESH_SECRET, {
-    expiresIn: "7d",
-  });
-  refreshTokens.set(tokenId, user);
-  return token;
-};
 
 class AccessService {
   static signUp = async () => {
-    throw new AppError("Signup persistence is not configured", {
-      status: 501,
-      code: "AUTH_SIGNUP_NOT_CONFIGURED",
-    });
+    throw new AppError("Use /auth/register for account registration", { status: 410, code: "AUTH_SIGNUP_DEPRECATED" });
   };
 
-  static login = async ({ email, password }) => {
-    if (!safeEqual(email, env.AUTH_ADMIN_EMAIL) || !safeEqual(password, env.AUTH_ADMIN_PASSWORD)) {
-      throw new AppError("Invalid email or password", {
-        status: 401,
-        code: "INVALID_CREDENTIALS",
-      });
-    }
+  static register = async ({ payload, context }) => authService.register({ payload, context });
 
-    return {
-      user: publicUser,
-      accessToken: signAccessToken(publicUser),
-      refreshToken: signRefreshToken(publicUser),
-    };
-  };
+  static login = async ({ identifier, email, password, context }) =>
+    authService.login({ identifier: identifier ?? email, password, context });
 
-  static refresh = async ({ refreshToken }) => {
-    try {
-      const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
-      const user = refreshTokens.get(payload.tokenId);
-      if (!user) {
-        throw new Error("Refresh token revoked");
-      }
-      refreshTokens.delete(payload.tokenId);
-      return {
-        user,
-        accessToken: signAccessToken(user),
-        refreshToken: signRefreshToken(user),
-      };
-    } catch (error) {
-      throw new AppError("Invalid or expired refresh token", {
-        status: 401,
-        code: "INVALID_REFRESH_TOKEN",
-      });
-    }
-  };
+  static refresh = async ({ refreshToken, context }) => authService.refresh({ refreshToken, context });
 
-  static logout = async ({ refreshToken }) => {
-    if (!refreshToken) {
-      return { revoked: false };
-    }
-    try {
-      const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
-      return { revoked: refreshTokens.delete(payload.tokenId) };
-    } catch (error) {
-      return { revoked: false };
-    }
-  };
+  static logout = async ({ refreshToken, sessionId, actor, context }) =>
+    authService.logout({ refreshToken, sessionId, actor, context });
+
+  static logoutAll = async ({ actor, context }) => authService.logoutAll({ actor, context });
+
+  static me = async ({ actor }) => authService.me({ actor });
+
+  static changePassword = async ({ actor, oldPassword, newPassword, context }) =>
+    authService.changePassword({ actor, oldPassword, newPassword, context });
 }
 
 module.exports = AccessService;

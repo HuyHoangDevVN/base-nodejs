@@ -6,7 +6,11 @@ const router = express.Router();
 router.use(require("./health"));
 
 router.use("/v1/api", require("./access"));
+router.use("/api/v1", require("./access"));
+router.use("/v1/api", require("./admin-auth"));
+router.use("/api/v1", require("./admin-auth"));
 
 router.use("/v1/api", require("./cohort"));
+router.use("/api/v1", require("./cohort"));
 
 module.exports = router;
