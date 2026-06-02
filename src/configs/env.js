@@ -1,11 +1,32 @@
 "use strict";
 
-require("dotenv").config();
+const fs = require("node:fs");
+const path = require("node:path");
+const dotenv = require("dotenv");
 const { z } = require("zod");
 
+const resolveEnvFile = () => {
+  const requested = process.env.ENV_FILE || process.env.DB_ENV_FILE;
+  if (!requested) {
+    return path.join(process.cwd(), ".env");
+  }
+  return path.isAbsolute(requested) ? requested : path.join(process.cwd(), requested);
+};
+
+const envFile = resolveEnvFile();
+if (fs.existsSync(envFile)) {
+  dotenv.config({ path: envFile, override: false });
+} else {
+  dotenv.config();
+}
+
 const isProduction = process.env.NODE_ENV === "production";
+const optionalEmptyString = (schema) =>
+  z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
 
 const envSchema = z.object({
+  ENV_FILE: z.string().optional(),
+  DB_ENV_FILE: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3055),
   DATABASE_HOST: z.string().default("localhost"),
@@ -25,8 +46,8 @@ const envSchema = z.object({
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().optional(),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().min(8).optional(),
   MONGO_ENABLED: z.enum(["true", "false"]).default("false"),
-  MONGO_URI: z.string().url().optional(),
-  MONGO_DB_NAME: z.string().min(1).optional(),
+  MONGO_URI: optionalEmptyString(z.string().url()),
+  MONGO_DB_NAME: optionalEmptyString(z.string().min(1)),
   APP_NAME: z.string().default("obe-base-api"),
   APP_VERSION: z.string().default("1.0.0"),
   COMMIT_SHA: z.string().optional(),

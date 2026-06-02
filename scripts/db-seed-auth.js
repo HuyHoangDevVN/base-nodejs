@@ -60,7 +60,8 @@ const upsertGroup = async ([code, name, moduleName, permissionCodes], permission
 };
 
 const bootstrapAdmin = async (superAdminRole, transaction) => {
-  if (!env.BOOTSTRAP_ADMIN_ENABLED_BOOL) {
+  const bootstrapDisabledByCommand = process.argv.includes("--no-bootstrap");
+  if (!env.BOOTSTRAP_ADMIN_ENABLED_BOOL || bootstrapDisabledByCommand) {
     logger.info("bootstrap_admin_skipped");
     return null;
   }

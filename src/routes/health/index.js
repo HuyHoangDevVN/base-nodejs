@@ -41,10 +41,13 @@ router.get("/ready", asyncHandler(async (req, res) => {
   }
 
   if (dependencies.postgres === "ok" && (!env.MONGO_ENABLED_BOOL || dependencies.mongo === "ok")) {
-    return sendSuccess(res, {
-      code: "OK",
-      message: "Service is ready",
-      data: { dependencies },
+    return res.status(200).json({
+      success: true,
+      status: "ready",
+      dependencies,
+      meta: {
+        requestId: req.requestId,
+      },
     });
   }
 
