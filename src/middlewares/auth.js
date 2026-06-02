@@ -2,9 +2,10 @@
 
 const { AppError } = require("../errors/AppError");
 const { env } = require("../configs/env");
-const { tokenService, permissionResolver } = require("../modules/auth");
+const { AccountStatus, SessionStatus } = require("../constants/auth");
+const { authSessionRepository, authUserRepository, tokenService, permissionResolver } = require("../modules/auth");
 
-const authenticate = (req, res, next) => {
+const authenticate = async (req, res, next) => {
   const header = req.get("authorization") || "";
   const [scheme, token] = header.split(" ");
 
@@ -17,6 +18,23 @@ const authenticate = (req, res, next) => {
 
   try {
     const payload = tokenService.verifyAccessToken(token);
+    const authUserId = payload.authUserId ?? payload.sub;
+    if (authUserId !== "env-admin") {
+      const user = await authUserRepository.findById(authUserId);
+      if (!user || user.deletedAt || ![AccountStatus.ACTIVE, "active"].includes(user.status)) {
+        return next(new AppError("Invalid or expired token", { status: 401, code: "INVALID_TOKEN" }));
+      }
+      if (Number(user.tokenVersion) !== Number(payload.tokenVersion)) {
+        return next(new AppError("Invalid or expired token", { status: 401, code: "INVALID_TOKEN_VERSION" }));
+      }
+      if (payload.sessionId) {
+        const session = await authSessionRepository.findActiveById(payload.sessionId);
+        if (!session || session.status !== SessionStatus.ACTIVE || String(session.userId) !== String(authUserId)) {
+          return next(new AppError("Invalid or expired token", { status: 401, code: "INVALID_SESSION" }));
+        }
+      }
+    }
+
     req.auth = {
       id: payload.authUserId ?? payload.sub,
       userId: payload.authUserId ?? payload.sub,

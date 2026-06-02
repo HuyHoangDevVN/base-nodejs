@@ -19,11 +19,11 @@ const systemLogResourceConfig = {
     idType: "objectId",
   },
   permissions: {
-    select: "system.log.read",
-    list: "system.log.read",
-    detail: "system.log.read",
-    delete: "system.log.delete",
-    bulkDelete: "system.log.delete",
+    select: "admin.system_logs.read",
+    list: "admin.system_logs.read",
+    detail: "admin.system_logs.read",
+    delete: "admin.system_logs.delete",
+    bulkDelete: "admin.system_logs.delete",
   },
   actions: {
     create: false,

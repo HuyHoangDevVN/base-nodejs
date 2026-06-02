@@ -239,7 +239,18 @@ class AuthService {
       requestId: context.requestId,
     });
 
-    return { accessToken, refreshToken: rotated.refreshToken, expiresIn };
+    return {
+      accessToken,
+      refreshToken: rotated.refreshToken,
+      expiresIn,
+      user: {
+        ...toPublicAuthUser(user),
+        role: authz.roles[0]?.code?.toLowerCase?.() ?? Roles.USER,
+        roles: authz.roles,
+        permissions: authz.permissions,
+      },
+      session: { id: session.id, expiresAt: rotated.expiresAt },
+    };
   }
 
   async logout({ refreshToken, sessionId, actor, context = {} }) {

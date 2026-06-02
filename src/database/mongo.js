@@ -1,10 +1,15 @@
 "use strict";
 
+const { env } = require("../configs/env");
+
 let mongoClient;
 let mongoDb;
 
-const connectMongo = async ({ uri = process.env.MONGO_URI, dbName = process.env.MONGO_DB_NAME } = {}) => {
+const connectMongo = async ({ uri = env.MONGO_URI, dbName = env.MONGO_DB_NAME } = {}) => {
   if (mongoDb) return mongoDb;
+  if (!env.MONGO_ENABLED_BOOL) {
+    throw new Error("MongoDB is disabled. Set MONGO_ENABLED=true to use Mongo resources.");
+  }
   if (!uri || !dbName) {
     throw new Error("MongoDB is not configured. Set MONGO_URI and MONGO_DB_NAME.");
   }
@@ -20,6 +25,13 @@ const getMongoDb = () => {
     throw new Error("MongoDB has not been connected");
   }
   return mongoDb;
+};
+
+const disconnectMongo = async () => {
+  if (!mongoClient) return;
+  await mongoClient.close();
+  mongoClient = undefined;
+  mongoDb = undefined;
 };
 
 const withMongoTransaction = async (fn) => {
@@ -38,6 +50,7 @@ const withMongoTransaction = async (fn) => {
 
 module.exports = {
   connectMongo,
+  disconnectMongo,
   getMongoDb,
   withMongoTransaction,
 };

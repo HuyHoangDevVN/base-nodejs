@@ -24,6 +24,9 @@ const envSchema = z.object({
   BOOTSTRAP_ADMIN_ENABLED: z.enum(["true", "false"]).default("false"),
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().optional(),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().min(8).optional(),
+  MONGO_ENABLED: z.enum(["true", "false"]).default("false"),
+  MONGO_URI: z.string().url().optional(),
+  MONGO_DB_NAME: z.string().min(1).optional(),
   APP_NAME: z.string().default("obe-base-api"),
   APP_VERSION: z.string().default("1.0.0"),
   COMMIT_SHA: z.string().optional(),
@@ -63,5 +66,6 @@ env.CORS_ORIGINS_LIST = env.CORS_ORIGINS.split(",").map((origin) => origin.trim(
 env.API_REQUIRE_AUTH_FOR_READS_BOOL = env.API_REQUIRE_AUTH_FOR_READS === "true";
 env.AUTH_ENV_ADMIN_ENABLED_BOOL = env.AUTH_ENV_ADMIN_ENABLED === "true";
 env.BOOTSTRAP_ADMIN_ENABLED_BOOL = env.BOOTSTRAP_ADMIN_ENABLED === "true";
+env.MONGO_ENABLED_BOOL = env.MONGO_ENABLED === "true";
 
 module.exports = { env };

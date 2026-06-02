@@ -33,6 +33,10 @@ const baseConfig = {
 };
 
 describe("generic CRUD foundation", () => {
+  test("mongodb package is available and Mongo disabled does not connect implicitly", () => {
+    expect(() => require("mongodb")).not.toThrow();
+  });
+
   test("query parser applies defaults, max limit, sort whitelist, filters, and escaped search", () => {
     const query = parseCrudQuery(baseConfig, {
       limit: "500",

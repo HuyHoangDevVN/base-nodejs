@@ -3,6 +3,7 @@
 const crypto = require("node:crypto");
 const { authUserRepository, authSessionRepository, passwordService, auditLogService, permissionResolver } = require("../modules/auth");
 const { AuthorizationRepository } = require("../modules/authorization/repositories/authorization.repository");
+const { AuthorizationAdminService } = require("../modules/authorization/services/authorization-admin.service");
 const { sendSuccess } = require("../utils/apiResponse");
 const { toPagination } = require("../shared/utils/pagination");
 const { toPublicAuthUser } = require("../modules/auth/mappers/auth-user.mapper");
@@ -10,10 +11,12 @@ const { AuthAuditAction, AccountStatus } = require("../constants/auth");
 const { AppError } = require("../errors/AppError");
 
 const authorizationRepository = new AuthorizationRepository();
+const authorizationAdminService = new AuthorizationAdminService({ permissionResolver });
 const publicEntity = (entity) => (entity?.get ? entity.get({ plain: true }) : entity);
 
 class AdminAuthController {
   getContext = (req) => ({
+    actorUserId: req.auth?.id,
     requestId: req.requestId,
     ipAddress: req.ip,
     userAgent: req.get("user-agent"),
@@ -195,69 +198,47 @@ class AdminAuthController {
   assignRoles = async (req, res) => {
     const { id } = req.validated.params;
     const { roleIds, expiresAt, reason } = req.validated.body;
-    await authorizationRepository.assignRoles({ userId: id, roleIds, expiresAt, assignedBy: req.auth.id });
-    permissionResolver.invalidate(id);
-    await auditLogService.record({
-      actorUserId: req.auth.id,
-      targetUserId: id,
-      action: AuthAuditAction.ASSIGN_ROLE,
-      resourceType: "auth_user",
-      resourceId: id,
-      after: { roleIds, expiresAt, reason },
-      ...this.getContext(req),
-    });
-    return sendSuccess(res, { message: "Roles assigned", data: { userId: id, roleIds } });
+    const data = await authorizationAdminService.assignRoles({ userId: id, roleIds, expiresAt, reason, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Roles assigned", data });
   };
 
   removeUserRole = async (req, res) => {
     const { id, roleId } = req.validated.params;
-    await authorizationRepository.removeUserRole({ userId: id, roleId });
-    permissionResolver.invalidate(id);
-    await this.audit("auth.role.remove", req, { targetUserId: id, resourceType: "auth_user", resourceId: id, after: { roleId } });
-    return sendSuccess(res, { message: "Role removed", data: { userId: id, roleId } });
+    const data = await authorizationAdminService.removeUserRole({ userId: id, roleId, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Role removed", data });
   };
 
   assignUserPermissionGroups = async (req, res) => {
     const { id } = req.validated.params;
     const { groupIds, expiresAt, reason } = req.validated.body;
-    await authorizationRepository.assignUserPermissionGroups({ userId: id, groupIds, expiresAt, reason, assignedBy: req.auth.id });
-    permissionResolver.invalidate(id);
-    await this.audit("auth.permission_group.assign", req, { targetUserId: id, resourceType: "auth_user", resourceId: id, after: { groupIds, expiresAt, reason } });
-    return sendSuccess(res, { message: "Permission groups assigned", data: { userId: id, groupIds } });
+    const data = await authorizationAdminService.assignUserPermissionGroups({ userId: id, groupIds, expiresAt, reason, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Permission groups assigned", data });
   };
 
   removeUserPermissionGroup = async (req, res) => {
     const { id, groupId } = req.validated.params;
-    await authorizationRepository.removeUserPermissionGroup({ userId: id, permissionGroupId: groupId });
-    permissionResolver.invalidate(id);
-    await this.audit("auth.permission_group.remove", req, { targetUserId: id, resourceType: "auth_user", resourceId: id, after: { groupId } });
-    return sendSuccess(res, { message: "Permission group removed", data: { userId: id, groupId } });
+    const data = await authorizationAdminService.removeUserPermissionGroup({ userId: id, groupId, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Permission group removed", data });
   };
 
   assignUserPermissions = async (req, res) => {
     const { id } = req.validated.params;
     const { permissionIds, expiresAt, reason } = req.validated.body;
-    await authorizationRepository.assignUserPermissions({ userId: id, permissionIds, expiresAt, reason, assignedBy: req.auth.id });
-    permissionResolver.invalidate(id);
-    await this.audit("auth.permission.assign_direct", req, { targetUserId: id, resourceType: "auth_user", resourceId: id, after: { permissionIds, expiresAt, reason } });
-    return sendSuccess(res, { message: "Direct permissions assigned", data: { userId: id, permissionIds } });
+    const data = await authorizationAdminService.assignUserPermissions({ userId: id, permissionIds, expiresAt, reason, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Direct permissions assigned", data });
   };
 
   removeUserPermission = async (req, res) => {
     const { id, permissionId } = req.validated.params;
-    await authorizationRepository.removeUserPermission({ userId: id, permissionId });
-    permissionResolver.invalidate(id);
-    await this.audit("auth.permission.remove_direct", req, { targetUserId: id, resourceType: "auth_user", resourceId: id, after: { permissionId } });
-    return sendSuccess(res, { message: "Direct permission removed", data: { userId: id, permissionId } });
+    const data = await authorizationAdminService.removeUserPermission({ userId: id, permissionId, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Direct permission removed", data });
   };
 
   assignGroupPermissions = async (req, res) => {
     const { id } = req.validated.params;
     const { permissionIds } = req.validated.body;
-    await authorizationRepository.assignGroupPermissions({ permissionGroupId: id, permissionIds });
-    permissionResolver.cache.clear();
-    await this.audit("auth.permission_group.update", req, { resourceType: "permission_group", resourceId: id, after: { permissionIds } });
-    return sendSuccess(res, { message: "Permissions added to group", data: { permissionGroupId: id, permissionIds } });
+    const data = await authorizationAdminService.assignGroupPermissions({ permissionGroupId: id, permissionIds, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Permissions added to group", data });
   };
 
   removeGroupPermission = async (req, res) => {
@@ -271,10 +252,8 @@ class AdminAuthController {
   assignRolePermissionGroups = async (req, res) => {
     const { id } = req.validated.params;
     const { groupIds } = req.validated.body;
-    await authorizationRepository.assignRolePermissionGroups({ roleId: id, groupIds });
-    permissionResolver.cache.clear();
-    await this.audit("auth.role.update", req, { resourceType: "role", resourceId: id, after: { groupIds } });
-    return sendSuccess(res, { message: "Permission groups added to role", data: { roleId: id, groupIds } });
+    const data = await authorizationAdminService.assignRolePermissionGroups({ roleId: id, groupIds, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Permission groups added to role", data });
   };
 
   removeRolePermissionGroup = async (req, res) => {
@@ -288,10 +267,8 @@ class AdminAuthController {
   assignRolePermissions = async (req, res) => {
     const { id } = req.validated.params;
     const { permissionIds } = req.validated.body;
-    await authorizationRepository.assignRolePermissions({ roleId: id, permissionIds });
-    permissionResolver.cache.clear();
-    await this.audit("auth.role.update", req, { resourceType: "role", resourceId: id, after: { permissionIds } });
-    return sendSuccess(res, { message: "Permissions added to role", data: { roleId: id, permissionIds } });
+    const data = await authorizationAdminService.assignRolePermissions({ roleId: id, permissionIds, ctx: this.getContext(req) });
+    return sendSuccess(res, { message: "Permissions added to role", data });
   };
 
   removeRolePermission = async (req, res) => {

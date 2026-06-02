@@ -25,7 +25,8 @@ const DEFAULT_PERMISSIONS = [
   ["auth.permission_group.update", "Update Permission Group", "auth", "permission_group", "update", "PATCH", "/api/v1/admin/auth/permission-groups/:id"],
   ["auth.permission_group.delete", "Delete Permission Group", "auth", "permission_group", "delete", "DELETE", "/api/v1/admin/auth/permission-groups/:id"],
   ["auth.permission_group.assign", "Assign Permission Group", "auth", "permission_group", "assign", "POST", "/api/v1/admin/auth/users/:id/permission-groups"],
-  ["admin.system_logs.read", "Read System Logs", "admin", "system_logs", "read", "GET", "/api/v1/admin/system-logs"],
+  ["admin.system_logs.read", "Read System Logs", "admin", "system_logs", "read", "GET", "/api/v1/system-logs"],
+  ["admin.system_logs.delete", "Delete System Logs", "admin", "system_logs", "delete", "DELETE", "/api/v1/system-logs/:id"],
   ["admin.system_health.read", "Read System Health", "admin", "system_health", "read", "GET", "/api/v1/ready"],
   ["admin.settings.read", "Read Settings", "admin", "settings", "read", "GET", "/api/v1/admin/settings"],
   ["admin.settings.update", "Update Settings", "admin", "settings", "update", "PATCH", "/api/v1/admin/settings"],
@@ -34,8 +35,10 @@ const DEFAULT_PERMISSIONS = [
   ["hrm.employee.update", "Update Employee", "hrm", "employee", "update", "PATCH", "/api/v1/employees/:id"],
   ["hrm.employee.delete", "Delete Employee", "hrm", "employee", "delete", "DELETE", "/api/v1/employees/:id"],
   ["hrm.account.provision", "Provision Account", "hrm", "account", "provision", "POST", "/api/v1/accounts/provision"],
-  ["cohort.read", "Read Cohorts", "academic", "cohort", "read", "GET", "/api/v1/cohorts"],
-  ["cohort.manage", "Manage Cohorts", "academic", "cohort", "manage", "POST", "/api/v1/cohorts"],
+  ["academic.cohort.read", "Read Academic Cohorts", "academic", "cohort", "read", "GET", "/api/v1/cohorts"],
+  ["academic.cohort.create", "Create Academic Cohort", "academic", "cohort", "create", "POST", "/api/v1/cohorts"],
+  ["academic.cohort.update", "Update Academic Cohort", "academic", "cohort", "update", "PATCH", "/api/v1/cohorts/:id"],
+  ["academic.cohort.delete", "Delete Academic Cohort", "academic", "cohort", "delete", "DELETE", "/api/v1/cohorts/:id"],
 ];
 
 const DEFAULT_ROLES = [
@@ -51,9 +54,9 @@ const DEFAULT_PERMISSION_GROUPS = [
   ["AUTH_USER_MANAGEMENT", "Auth User Management", "auth", ["auth.user.read", "auth.user.create", "auth.user.update", "auth.user.update_status", "auth.user.lock", "auth.user.unlock", "auth.user.reset_password", "auth.session.read", "auth.session.revoke"]],
   ["AUTH_ROLE_MANAGEMENT", "Role Management", "auth", ["auth.role.read", "auth.role.create", "auth.role.update", "auth.role.delete", "auth.role.assign"]],
   ["AUTH_PERMISSION_MANAGEMENT", "Permission Management", "auth", ["auth.permission.read", "auth.permission.create", "auth.permission.update", "auth.permission.delete", "auth.permission.assign_direct", "auth.permission_group.read", "auth.permission_group.create", "auth.permission_group.update", "auth.permission_group.delete", "auth.permission_group.assign"]],
-  ["ADMIN_MONITORING", "Admin Monitoring", "admin", ["admin.system_logs.read", "admin.system_health.read", "admin.settings.read", "admin.settings.update"]],
+  ["ADMIN_MONITORING", "Admin Monitoring", "admin", ["admin.system_logs.read", "admin.system_logs.delete", "admin.system_health.read", "admin.settings.read", "admin.settings.update"]],
   ["HRM_EMPLOYEE_MANAGEMENT", "HRM Employee Management", "hrm", ["hrm.employee.read", "hrm.employee.create", "hrm.employee.update", "hrm.employee.delete", "hrm.account.provision"]],
-  ["ACADEMIC_COHORT_MANAGEMENT", "Academic Cohort Management", "academic", ["cohort.read", "cohort.manage"]],
+  ["ACADEMIC_COHORT_MANAGEMENT", "Academic Cohort Management", "academic", ["academic.cohort.read", "academic.cohort.create", "academic.cohort.update", "academic.cohort.delete"]],
 ];
 
 const ROLE_PERMISSION_GROUPS = {

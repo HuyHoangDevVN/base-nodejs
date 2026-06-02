@@ -14,7 +14,9 @@ class CohortPolicy {
 
   assertCanManage(actor) {
     const adminRole = actor?.role === Roles.ADMIN || actor?.roles?.some((role) => ["ADMIN", "SUPER_ADMIN"].includes(role));
-    const canManage = actor?.permissions?.includes("cohort.manage");
+    const canManage = ["academic.cohort.create", "academic.cohort.update", "academic.cohort.delete"].some((permission) =>
+      actor?.permissions?.includes(permission)
+    );
     if (!actor || (!adminRole && !canManage)) {
       throw new ForbiddenError();
     }
