@@ -39,7 +39,15 @@ const errorHandler = (err, req, res, next) => {
     success: false,
     code,
     message,
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {}),
+    },
     ...(details ? { details } : {}),
+    meta: {
+      requestId: req.requestId,
+    },
     requestId: req.requestId,
   });
 };
